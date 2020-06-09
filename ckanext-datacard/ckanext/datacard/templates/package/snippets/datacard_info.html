@@ -1,0 +1,45 @@
+<div class="box">
+ <header class="module-heading">
+   <h3>{{ _('Datacard') }}</h3>
+ </header>
+ <section class="module-content">
+   {% set groups = h.datacard_fetch_grouped_datacard(pkg_dict) %}
+   {% for group_name, metrics in groups.items() %}
+     <div class="box">
+     <header class="module-heading">
+       <h4>{{ _(group_name) }}</h4>
+     </header>
+     {% if group_name == 'group1' %}
+       <table class="table table-striped table-bordered table-condensed">
+       <thead>
+        <tr>
+         <th scope="col">{{ _('Field') }}</th>
+         <th scope="col">{{ _('Value') }}</th>
+        </tr>
+       </thead>
+       <tbody>
+        {% for metric_name, value in metrics.items() %}
+          <tr>
+           <th scope="row" class="dataset-label">{{ _(metric_name) }}</th>
+           <td class="dataset-details" property="rdf:value">{{ value }}</td>
+          </tr>
+        {% endfor %}
+       </tbody>
+       </table>
+     {% endif %}
+     {% if group_name == 'group2' %}
+       <section class="module-content">
+         <ul class="unstyled">
+          {% for metric_name, value in metrics.items() %}
+            <li>
+              <h5>{{ _(metric_name) }}</h5>
+              <p>{{ value }}</p>
+            </li>
+          {% endfor %}
+         </ul>
+       </section>
+     {% endif %}
+     </div>
+   {% endfor %} 
+ </section>
+</div>

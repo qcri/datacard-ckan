@@ -1,0 +1,6 @@
+{% ckan_extends %}
+
+{% block package_additional_info %}
+  {{ super() }}
+  {% snippet 'package/snippets/datacard_info.html', pkg_dict=pkg %}
+{% endblock %}
