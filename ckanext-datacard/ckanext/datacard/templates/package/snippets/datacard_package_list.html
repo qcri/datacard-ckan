@@ -17,11 +17,13 @@ Example:
 {% block package_list %}
   {% if packages %}
     {# Add a button to compare datacards which will pop up a graph #}
-    <a class="btn compare-datacard" data-module="datacard_compare" data-module-packages="{{ packages }}">
-      <i class="fa fa-arrow-circle-right"><b>{{ _('Compare DataCards') }}</b></i>
-    </a>
-    <p></p>    
-
+    {% resource 'datacard/datacard_compare.css' %}
+    <ul class="{{ list_class or 'dataset-list list-unstyled' }}">
+      <a class="btn compare-datacard" data-module="datacard_compare" data-module-packages="{{ packages }}">
+        <i class="fa fa-arrow-circle-right"><b>{{ _('Compare DataCards') }}</b></i>
+      </a>
+    </ul>    
+    <p></p>
     {# Show the list of packages #}
     <ul class="{{ list_class or 'dataset-list list-unstyled' }}">
     	{% block package_list_inner %}

@@ -1,5 +1,6 @@
 import ckan.plugins as plugins
 import ckan.plugins.toolkit as tk
+import ast
 import pandas as pd
 
 from plots import generate_datacard_plot
@@ -98,25 +99,53 @@ def fetch_grouped_datacard(pkg_dict):
             if group_id not in grouped:
                 grouped[group_id] = {}
             grouped[group_id][metric_id] = metric_value
-    print('-- grouped datacard: ', grouped)
+    # print('-- grouped datacard: ', grouped)
     return grouped
 
+# packages is a list of package dicts in unicode
 def build_datacard_plot(packages):
-    tuples = [] # ( pkg_name, group, metric1, metric2
+    print('-- Received plot request: ')
+    # Schema for dataframe for each group: ( package, metric1, metric2, ...)
+    groupedDF = {}
     # fetch grouped datacard from each pkg dict
-    packages = []
+    pkglist = []
     groups = []
-    for pkg in packages:
-        metrics[pkg[name]] = fetch_grouped_datacard(pkg)
+    metrics = {}
+    for pkg in ast.literal_eval(packages):
+        pkgname = pkg['name']
+        # print('-- Getting package: ', pkgname)
+        metrics[pkgname] = fetch_grouped_datacard(pkg)
+        pkglist.append(pkgname)
+        groups.extend(metrics[pkgname].keys())
 
-    # merge the groups to create a dataframe
+    # merge the data from packages to create a dataframe
+    groups = set(groups)
+    print('Found groups: ', groups)
+    groupedDF = {}
+    for group in groups:
+        # print('-- Iterating group: ', group)
+        recordlist = []
+        for pkg in pkglist:
+            # print('-- Iterating package: ', pkg)
+            if metrics[pkg] is None or len(metrics[pkg]) < 1:
+                continue
+            if group not in metrics[pkg]:
+                continue
+            groupData = metrics[pkg][group]
+            # print('-- Group data: ', groupData)
+            record = {}
+            record['package'] = pkg
+            for (k, v) in groupData.items():
+                record[k] = v
+            # print('-- Record data: ', record)
+            recordlist.append(record)
+    
+        print('-- Creating grouped dataframe for ', group, ' : ', recordlist)
+        groupedDF[group] = pd.DataFrame(recordlist)
 
     # build a plot with slider to select a group
-
-    # output the plot as an html element
-
-    print('-- Received plot request with: ', packages)
-    return('<div><a class="btn inspect-datacard">Inspect Datacard</a></div>')
+    return generate_datacard_plot(groupedDF, groups, html=True)
+    # return('<div><a class="btn inspect-datacard">Inspect Datacard</a></div>')
 
 class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
     plugins.implements(plugins.IConfigurer)
