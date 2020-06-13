@@ -1,0 +1,10 @@
+[CKAN]
+site_url = <URL of CKAN site> 
+api_key = <API key of a user with create access>
+
+[DATA]
+organization = <Name of organization on CKAN to store dataset at, will be created if it doesn't exist>
+dataset.name = <Name of dataset>
+dataset.description = <Description of dataset>
+dataset.type = <Type is used in CKAN extensions: If using datacard, the valid options are: [mltype]>
+dataset.file = <Full file path of data to be uploaded>
