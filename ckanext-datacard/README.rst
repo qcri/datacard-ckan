@@ -28,17 +28,15 @@
 ckanext-datacard
 =============
 
-.. Put a description of your extension here:
-   What does it do? What features does it have?
-   Consider including some screenshots or embedding a video!
+- Builds data cards (a set of rich metadata) associated to each dataset as it is uploaded to CKAN.
+- Enables browsing, searching, visualizing, and comparing datasets through data cards.
 
 
 ------------
 Requirements
 ------------
 
-For example, you might want to mention here which versions of CKAN this
-extension works with.
+Tested on CKAN version 2.8.4
 
 
 ------------
@@ -72,13 +70,11 @@ To install ckanext-datacard:
 Config settings
 ---------------
 
-None at present
+1. Datacard metrics to be used as facets for searching. 
+   The directory contains a file for each type of datasets. Supported types include [mltype]. 
+   Source contains an example file: <https://github.com/mayureshkunjir/datacard-ckan/blob/master/ckanext-datacard/ckanext/datacard/config/facets/mltype>
 
-.. Document any optional config settings here. For example::
-
-.. # The minimum number of hours to wait before re-checking a resource
-   # (optional, default: 24).
-   ckanext.datacard.some_setting = some_default_value
+       ckan.datacard.facetsdict = <path to directory containing facets configuration> 
 
 
 ----------------------
