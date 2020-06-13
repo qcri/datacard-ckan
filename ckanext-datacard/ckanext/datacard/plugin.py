@@ -1,9 +1,12 @@
 import ckan.plugins as plugins
 import ckan.plugins.toolkit as tk
 import ast
+import os
 import pandas as pd
 
-from plots import generate_datacard_plot
+from ckan.common import config
+from generators.mlgenerator import MLDatacardGenerator
+from compare import generate_datacard_plot, generate_datacard_spreadsheet
 
 def _update_datacard(package_id):
     import json
@@ -103,8 +106,7 @@ def fetch_grouped_datacard(pkg_dict):
     return grouped
 
 # packages is a list of package dicts in unicode
-def build_datacard_plot(packages):
-    print('-- Received plot request: ')
+def _build_grouped_dataframe(packages):
     # Schema for dataframe for each group: ( package, metric1, metric2, ...)
     groupedDF = {}
     # fetch grouped datacard from each pkg dict
@@ -134,7 +136,7 @@ def build_datacard_plot(packages):
             groupData = metrics[pkg][group]
             # print('-- Group data: ', groupData)
             record = {}
-            record['package'] = pkg
+            record['Dataset'] = pkg
             for (k, v) in groupData.items():
                 record[k] = v
             # print('-- Record data: ', record)
@@ -143,9 +145,21 @@ def build_datacard_plot(packages):
         print('-- Creating grouped dataframe for ', group, ' : ', recordlist)
         groupedDF[group] = pd.DataFrame(recordlist)
 
+    return (groupedDF, groups)
+
+# packages is a list of package dicts in unicode
+def build_datacard_plot(packages):
+    (groupedDF, groups) = _build_grouped_dataframe(packages)
     # build a plot with slider to select a group
-    return generate_datacard_plot(groupedDF, groups, html=True)
-    # return('<div><a class="btn inspect-datacard">Inspect Datacard</a></div>')
+    return generate_datacard_plot(groupedDF, groups)
+
+def build_datacard_spreadsheet(packages):
+    (groupedDF, groups) = _build_grouped_dataframe(packages)
+    # build a plot with slider to select a group
+    return generate_datacard_spreadsheet(groupedDF, groups)
+
+def render(obj):
+    tk.render(obj)
 
 class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
     plugins.implements(plugins.IConfigurer)
@@ -176,7 +190,7 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
     def package_types(self):
         # This plugin doesn't handle any special package types, it just
         # registers itself as the default (above).
-        return []
+        return ['mltype']
 
     def _modify_package_schema(self, schema):
         schema.update({ self._get_datacard_key() :
@@ -198,11 +212,6 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
 
     def show_package_schema(self):
         schema = super(DatacardPlugin, self).show_package_schema()
-        #schema.update({ self._get_datacard_key() :
-        #                [tk.get_converter('convert_from_extras'),
-        #                 tk.get_validator('ignore_missing')]
-        #})
-        print('--Converted from extras schema: ', schema['__extras'])
         return schema
 
     def setup_template_variables(self, context, data_dict):
@@ -214,8 +223,9 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
     def _after_create_or_update(self, context, resource):        
         url = resource['url']
         print('--Modified resource at ', {url}, ' from package ', context['package'])
-        # start a background job to prepare datacard
-        job = tk.enqueue_job(_update_datacard, args=(resource['package_id'],), queue=tk._('datacard'))
+        # Invoke each generator in a separate background job
+        generator = MLDatacardGenerator(resource['package_id'])
+        job = tk.enqueue_job(generator.generate, queue=tk._('datacard'))
 
     def before_create(self, context, resource):
         pass
@@ -227,14 +237,13 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
         pass
     
     def after_update(self, context, resource):
-        print('--Updated resource', resource['name'])
         self._after_create_or_update(context, resource)
 
     def before_delete(self, context, resource, resources):
         pass
 
     def after_delete(self, context, resource):
-        print('--Deleted resource ', resource['name'])
+        pass
 
     def before_show(self, resource_dict):
         return resource_dict
@@ -312,6 +321,14 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
 
     def dataset_facets(self, facets_dict, package_type):
         # Gathers all unique keys from datacard and add them to facets
+        facetsconf_dict = config.get('ckan.datacard.facetsdict', None)
+        if facetsconf_dict is not None:
+            facets_file = os.path.join(facetsconf_dict, package_type)
+            if os.path.exists(facets_file):
+                data = pd.DataFrame.from_csv(facets_file, sep='\t', index_col=False)
+                print('Obtained new facets: ', data)
+                for row in data.itertuples():
+                    facets_dict[tk._(row[0])] = tk._(row[1])
         # DUMMY implementation below
         facets_dict[tk._('datacard_group1_metric')] = tk._('Resource Counts')
         return facets_dict
@@ -320,5 +337,6 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
     
     def get_helpers(self):
         return {'datacard_fetch_grouped_datacard': fetch_grouped_datacard,
-                'datacard_build_datacard_plot': build_datacard_plot}
+                'datacard_build_datacard_plot': build_datacard_plot,
+                'datacard_build_datacard_spreadsheet': build_datacard_spreadsheet}
 

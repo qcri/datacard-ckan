@@ -3,15 +3,14 @@ import plotly.graph_objects as go
 
 # data: dataframe with metrics as columns
 # groups: categories in data, if None no grouping is done
-# html: whether to return HTML object
-def generate_datacard_plot(data, groups=None, html=True):
+def generate_datacard_plot(data, groups=None):
 
     assert data is not None
     if groups is not None: 
         assert len(data)==len(groups)
 
     if groups is None:
-        return generate_datacard_plot_single(data, html)
+        return generate_datacard_plot_single(data)
 
     fig=go.Figure()
     print('-- figure created')
@@ -19,7 +18,7 @@ def generate_datacard_plot(data, groups=None, html=True):
     # creating bar plot for each column in each dataframe
     for group in groups:
         subdata = data[group]
-        for col in subdata.iloc[:, subdata.columns != 'package']:
+        for col in subdata.iloc[:, subdata.columns != 'Dataset']:
             # print('-- working on column: ', col)
             fig.add_trace( go.Bar(x=subdata['package'], y=subdata[col], name=col, visible=True) )
 
@@ -28,7 +27,7 @@ def generate_datacard_plot(data, groups=None, html=True):
 
         def map_cols_to(group, boolVal, data):
             subdata = data[group]
-            return [ boolVal for col in subdata.iloc[:, subdata.columns != 'package'] ]
+            return [ boolVal for col in subdata.iloc[:, subdata.columns != 'Dataset'] ]
 
         visible = []
         [ visible.extend(map_cols_to(g, g==group, data)) for g in groups ]
@@ -49,17 +48,39 @@ def generate_datacard_plot(data, groups=None, html=True):
     ])
 
     print('Done with figure')
-    if html:
-        fig.show()
-        htmlText = ""
-        #fig.write_html(htmlText, include_plotlyjs=False)
-        print('Offline plot with data: ')
-        htmlText = plotly.offline.plot(fig, include_plotlyjs=False, output_type='div')
-        print(htmlText)
-        #return htmlText
+    fig.show()
+    htmlText = ""
+    #fig.write_html(htmlText, include_plotlyjs=False)
+    print('Offline plot with data: ')
+    htmlText = plotly.offline.plot(fig, include_plotlyjs=False, output_type='div')
+    print(htmlText)
+    return htmlText
 
     # garbage return
     return(u'<a class="btn inspect-datacard" href="www.google.com">Inspect Datacard</a>')
 
-def generate_datacard_plot_single(data, html=True):
+def generate_datacard_plot_single(data):
     pass
+
+# data: dataframe with metrics as columns
+# groups: categories in data, if None no grouping is done
+def generate_datacard_spreadsheet(data, groups):
+
+    assert data is not None
+    if groups is not None:
+        assert len(data)==len(groups)
+
+    tables = {}
+    if groups is None:
+        tables['Datacard'] = data.to_html(table_id='Datacard')
+        return tables
+
+    for group in groups:
+        if group not in data:
+            return None
+        subdata = data[group]
+        #subdata.set_option('colheader_justify', 'center')
+        tables[group] = subdata.to_html(table_id=group, classes='dcstyle')
+    print('---Generated tables: ', tables)
+    return tables
+

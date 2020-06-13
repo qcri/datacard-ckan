@@ -21,8 +21,8 @@ ckan.module('datacard_compare', function ($) {
 
       // Add a Bootstrap popover to the button. Since we don't have the HTML
       // from the snippet yet, we just set the content to "Loading..."
-      //this.el.popover({title: this.options.title, html: true,
-        //               content: this._('Loading...'), placement: 'right'});
+      this.el.popover({title: this.options.title, html: true,
+                       content: this._('Loading...'), placement: 'right'});
 
       // Add an event handler to the button, when the user clicks the button
       // our _onClick() function will be called.
@@ -80,10 +80,24 @@ ckan.module('datacard_compare', function ($) {
     _onReceiveSnippet: function(content) {
 	// Replace the popover with a new one that has the rendered HTML from the
 	// snippet as its contents.
-	//this.el.popover('destroy');
-	this.el.popover({title: "Comparing search results", html: true,
-			 content: content, placement: 'right'});
-	this.el.popover('show');
+	this.el.popover('destroy');
+        // var parent = this.el.parentElement;
+        // var children = parent.childNodes;
+        // for (let i = 0; i < children.length; i++) {
+        //  if(c[i] != this.el) {
+        //    c[i].innerHTML = content;
+        //    this.el.disable();
+        //  }
+        // }
+
+        var compareEl = document.getElementById("compare");
+        console.log("Compare element found: " + compareEl);
+        compareEl.innerHTML = content;
+        this.el.disabled = true;
+     
+	// this.el.popover({title: "Comparing search results", html: true,
+	//		 content: content, placement: 'right'});
+	// this.el.popover('show');
     },
   };
 });
