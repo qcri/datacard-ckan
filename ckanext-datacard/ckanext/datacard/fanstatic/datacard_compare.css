@@ -48,6 +48,11 @@
     border: 1px solid silver;
 }
 
+.dataframe {
+    width: auto;
+    overflow:scroll;
+}
+
 .dcstyle td, th {
     padding: 5px;
 }

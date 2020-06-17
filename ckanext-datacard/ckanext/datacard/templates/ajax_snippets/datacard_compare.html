@@ -7,7 +7,7 @@
  <dl>
   {% for (group, table) in h.datacard_build_datacard_spreadsheet(packages).items() %}
    <dt>{{ group }}</dt>
-   <dd>{{ table | safe }}</dd>
+   <dd><div overflow:scroll>{{ table | safe }}</div></dd>
   {% endfor %}
  </dl> 
 </div>

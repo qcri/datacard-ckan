@@ -1,3 +1,4 @@
+import ckan.plugins.toolkit as tk
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -72,15 +73,28 @@ def generate_datacard_spreadsheet(data, groups):
 
     tables = {}
     if groups is None:
-        tables['Datacard'] = data.to_html(table_id='Datacard')
+        tables['Datacard'] = data.round(2).to_html(table_id='Datacard', classes='dcstyle', index=False)
         return tables
 
     for group in groups:
         if group not in data:
             return None
         subdata = data[group]
-        #subdata.set_option('colheader_justify', 'center')
-        tables[group] = subdata.to_html(table_id=group, classes='dcstyle')
-    print('---Generated tables: ', tables)
+        # Add hyperlink to dataset page
+        # print('-- subdata before linking: ', subdata.iloc[:, 0])
+        subdata.iloc[:, 0] = subdata.iloc[:, 0].apply(
+            lambda x: "<a href='{}'>{}</a>".format(
+                tk.url_for(controller='package', action='read', id=x), x
+                ))
+        # print('-- subdata after linking: ', subdata)
+        tables[group] = subdata.round(2).to_html(
+            table_id=group,
+            classes='dcstyle',
+            index=False,
+            render_links=True,
+            escape=False,
+            justify='center'
+        )
+    # print('---Generated tables: ', tables)
     return tables
 

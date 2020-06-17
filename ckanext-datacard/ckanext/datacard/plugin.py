@@ -2,7 +2,9 @@ import ckan.plugins as plugins
 import ckan.plugins.toolkit as tk
 import ast
 import os
+import json
 import pandas as pd
+import collections
 
 from ckan.common import config
 from generators.mlgenerator import MLDatacardGenerator
@@ -90,7 +92,7 @@ def _update_datacard(package_id):
     data_dict = result
     result = postrequest(url, data_dict)
 
-def fetch_grouped_datacard(pkg_dict):
+def _fetch_grouped_datacard(pkg_dict):
     extras = pkg_dict['extras']
     grouped = {}
     for extra in extras:
@@ -113,15 +115,32 @@ def _build_grouped_dataframe(packages):
     pkglist = []
     groups = []
     metrics = {}
-    for pkg in ast.literal_eval(packages):
-        pkgname = pkg['name']
-        # print('-- Getting package: ', pkgname)
-        metrics[pkgname] = fetch_grouped_datacard(pkg)
-        pkglist.append(pkgname)
-        groups.extend(metrics[pkgname].keys())
+
+    try:
+        for pkg in ast.literal_eval(packages):
+            pkgname = pkg['name']
+            # print('-- Getting package: ', pkgname)
+            metrics[pkgname] = _fetch_grouped_datacard(pkg)
+            pkglist.append(pkgname)
+            groups.extend(metrics[pkgname].keys())
+    except ValueError:
+        # print('Trying out with a single package: ', packages)
+        # this is likely a single package requested in dataset page
+        try:
+            pkg = packages
+            pkgname = pkg['name']
+            # print('-- Getting package: ', pkgname)
+            metrics[pkgname] = _fetch_grouped_datacard(pkg)
+            pkglist.append(pkgname)
+            groups.extend(metrics[pkgname].keys())
+        except Exception as e:
+            print(e)
+            return (None, None)# can't help with this exception
 
     # merge the data from packages to create a dataframe
     groups = set(groups)
+    # Ignore test groups
+    groups = [x for x in groups if not x.startswith('group')]
     print('Found groups: ', groups)
     groupedDF = {}
     for group in groups:
@@ -135,15 +154,22 @@ def _build_grouped_dataframe(packages):
                 continue
             groupData = metrics[pkg][group]
             # print('-- Group data: ', groupData)
-            record = {}
+            record = collections.OrderedDict()
             record['Dataset'] = pkg
-            for (k, v) in groupData.items():
+            for k, v in sorted(groupData.iteritems()):
                 record[k] = v
             # print('-- Record data: ', record)
             recordlist.append(record)
     
-        print('-- Creating grouped dataframe for ', group, ' : ', recordlist)
-        groupedDF[group] = pd.DataFrame(recordlist)
+        # print('-- Creating grouped dataframe for ', group, ' : ', recordlist)
+        df = pd.DataFrame(recordlist)
+        # Transform to numeric whenever possible taking care of nan values
+        # TODO: The following replacement is having no effect
+        df.replace({"NaN": None}, regex=True, inplace=True)
+        # print('-- before numeric: ', df)
+        numCols = df.apply(pd.to_numeric, errors='ignore')
+        # print('-- after numeric: ', numCols)
+        groupedDF[group] = pd.DataFrame(numCols)
 
     return (groupedDF, groups)
 
@@ -151,12 +177,16 @@ def _build_grouped_dataframe(packages):
 def build_datacard_plot(packages):
     (groupedDF, groups) = _build_grouped_dataframe(packages)
     # build a plot with slider to select a group
-    return generate_datacard_plot(groupedDF, groups)
+    if groupedDF and groups:
+        return generate_datacard_plot(groupedDF, groups)
+    return None
 
 def build_datacard_spreadsheet(packages):
     (groupedDF, groups) = _build_grouped_dataframe(packages)
     # build a plot with slider to select a group
-    return generate_datacard_spreadsheet(groupedDF, groups)
+    if groupedDF and groups:
+        return generate_datacard_spreadsheet(groupedDF, groups)
+    return None
 
 def render(obj):
     tk.render(obj)
@@ -165,7 +195,7 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
     plugins.implements(plugins.IConfigurer)
     plugins.implements(plugins.IResourceController)
     plugins.implements(plugins.IDatasetForm)
-    # plugins.implements(plugins.IPackageController)
+    plugins.implements(plugins.IPackageController)
     plugins.implements(plugins.IFacets)
     plugins.implements(plugins.ITemplateHelpers)
 
@@ -220,7 +250,9 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
 
     # IResourceController
   
-    def _after_create_or_update(self, context, resource):        
+    def _after_create_or_update(self, context, resource):
+        if 'size' not in resource:
+            return # This is a package update; we are only interested in resource update. Open issue at: https://github.com/ckan/ckan/issues/2949
         url = resource['url']
         print('--Modified resource at ', {url}, ' from package ', context['package'])
         # Invoke each generator in a separate background job
@@ -296,7 +328,7 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
 
     def before_search(self, search_params):
         #import re
-        print('Before searching, params: ', search_params)
+        # print('Before searching, params: ', search_params)
         #for (param, value) in search_params.items():
         #    print('Iterating over: ', (param, value))
         #    if type(value) == str and value.startswith('datacard') and '\"[' in value:
@@ -309,8 +341,23 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
         return search_results
 
     def before_index(self, pkg_dict):
-        print('Called before indexing')
-        # Calling the following creates an infinite loop between IResourceController's package update and this.
+        print('--Called before indexing')
+        # Delete keys starting with 'datacard_' from dict
+        deleteKeys = [key for key in pkg_dict if key.startswith('datacard')]
+        for key in deleteKeys:
+            print('--Deleting: ', key)
+            del pkg_dict[key]
+        
+        # Fetch extras from dict
+        extras_dict = json.loads(pkg_dict['data_dict'])['extras']
+        # print('-- extras: ', extras_dict)
+        extras_list = tk.h.sorted_extras(extras_dict)
+
+        # Insert keys from extras starting with datacard_ again
+        for (k, v) in extras_list:
+            print('-- Adding: ', k)
+            pkg_dict[k] = v
+         
         # return self._make_datacards_numeric(pkg_dict)
         return pkg_dict
 
@@ -318,25 +365,42 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
         return pkg_dict
 
     # IFacets
+    cachedFacets = {}
 
     def dataset_facets(self, facets_dict, package_type):
+        print('Requested facets for: ', package_type, ' facets: ', facets_dict)
+        del facets_dict['organization']
+        del facets_dict['groups']
+        del facets_dict['tags']
+
+        package_type = 'mltype' # FIXME: Hacking, need to see why CKAN is not passing this value
+        if(package_type in self.cachedFacets):
+            facets_dict.update(self.cachedFacets[package_type])
+            return facets_dict
+        
         # Gathers all unique keys from datacard and add them to facets
+        self.cachedFacets[package_type] = collections.OrderedDict()
         facetsconf_dict = config.get('ckan.datacard.facetsdict', None)
+        # print('Looking through folder: ', facetsconf_dict)
         if facetsconf_dict is not None:
             facets_file = os.path.join(facetsconf_dict, package_type)
+            # print('looking for: ', facets_file)
             if os.path.exists(facets_file):
-                data = pd.DataFrame.from_csv(facets_file, sep='\t', index_col=False)
-                print('Obtained new facets: ', data)
+                # print('Reading from: ', facets_file)
+                data = pd.read_csv(facets_file, sep='\t', index_col='Metric', usecols=('Metric', 'DisplayValue'))
+                print('Obtained new facets: ')
                 for row in data.itertuples():
-                    facets_dict[tk._(row[0])] = tk._(row[1])
+                    print(row)
+                    self.cachedFacets[package_type][tk._(row[0])] = tk._(row[1])
         # DUMMY implementation below
-        facets_dict[tk._('datacard_group1_metric')] = tk._('Resource Counts')
+        self.cachedFacets[package_type][tk._('datacard_group1_metric')] = tk._('Resource Counts')
+        facets_dict.update(self.cachedFacets[package_type])
         return facets_dict
 
     #ITemplateHelpers
     
     def get_helpers(self):
-        return {'datacard_fetch_grouped_datacard': fetch_grouped_datacard,
+        return {'datacard_fetch_grouped_datacard': _fetch_grouped_datacard,
                 'datacard_build_datacard_plot': build_datacard_plot,
                 'datacard_build_datacard_spreadsheet': build_datacard_spreadsheet}
 

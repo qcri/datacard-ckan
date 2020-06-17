@@ -1,29 +1,14 @@
 {% ckan_extends %}
 
 {% block extras %}
-{% endblock %}
-
+{% resource 'datacard/datacard_compare.css' %}
  <section class="datacard-info">
   <h3>{{ _('Datacard') }}</h3>
-  <table class="table table-striped table-bordered table-condensed">
-    <thead>
-      <tr>
-        <th scope="col">{{ _('Field') }}</th>
-        <th scope="col">{{ _('Value') }}</th>
-      </tr>
-    </thead>
-    <tbody>
-     {% block datacard %}
-      {% for extra in pkg_dict.extras %}
-       {% if extra['key'].startswith('datacard') %}
-        <tr dc:relation" resource="_:extra{{ i }}">
-         <th scope="row" class="dataset-label">{{ _(extra['key']|e) }}</th>
-         <td class="dataset-details" property="rdf:value">{{ extra['value'] }}</td>
-        </tr>
-       {% endif %}
-      {% endfor %}
-     {% endblock %}
-    </tbody>
-   </table>
+  <dl>
+   {% for (group, table) in h.datacard_build_datacard_spreadsheet(pkg_dict).items() %}
+    <dt>{{ group }}</dt>
+    <dd>{{ table | safe }}</dd>
+   {% endfor %}
+  </dl> 
  </section>
-
+{% endblock %}
