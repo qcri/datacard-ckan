@@ -4,6 +4,7 @@ import ast
 import os
 import json
 import pandas as pd
+import numpy as np
 import collections
 
 from ckan.common import config
@@ -161,15 +162,14 @@ def _build_grouped_dataframe(packages):
             # print('-- Record data: ', record)
             recordlist.append(record)
     
-        # print('-- Creating grouped dataframe for ', group, ' : ', recordlist)
         df = pd.DataFrame(recordlist)
+        # print('-- Creating grouped dataframe for ', group, ' : ', df)
         # Transform to numeric whenever possible taking care of nan values
-        # TODO: The following replacement is having no effect
-        df.replace({"NaN": None}, regex=True, inplace=True)
+        df = df.replace('NaN', np.nan).fillna('')
         # print('-- before numeric: ', df)
-        numCols = df.apply(pd.to_numeric, errors='ignore')
-        # print('-- after numeric: ', numCols)
-        groupedDF[group] = pd.DataFrame(numCols)
+        numDF = df.apply(pd.to_numeric, errors='ignore')
+        # print('-- after numeric: ', numDF)
+        groupedDF[group] = numDF
 
     return (groupedDF, groups)
 
