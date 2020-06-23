@@ -65,3 +65,8 @@
     background: silver;
     cursor: pointer;
 }
+
+.dcstyle-check {
+    float: left;
+    margin-right: 5px;
+}

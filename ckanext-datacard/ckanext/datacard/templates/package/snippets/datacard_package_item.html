@@ -28,6 +28,12 @@ Example:
       <div class="dataset-content">
         {% block heading %}
           <h3 class="dataset-heading">
+            {% block dataset_check %}
+              {% set checkId = 'check-' ~ package.id %}
+              <div class="dcstyle">
+               <input class="dcstyle-check" type="checkbox" id={{checkId}} name=check value={{checkId}} checked>
+              </div>
+            {% endblock %}
             {% block heading_private %}
               {% if package.private %}
                 <span class="dataset-private label label-inverse">

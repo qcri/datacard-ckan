@@ -6,7 +6,7 @@ import rpy2.robjects as ro
 from rpy2.robjects import pandas2ri
 
 import requests
-import io
+import io, traceback
 
 class MLDatacardGenerator(DatacardGenerator):
 
@@ -32,14 +32,19 @@ class MLDatacardGenerator(DatacardGenerator):
                 data, meta = arff.loadarff(content)
                 print('*** arff data: ', meta)
                 df = pd.DataFrame(data)
-                df = df.select_dtypes(exclude=['number']).applymap(lambda x: x.replace("'", "")) 
+                # print('*** Loaded df: ', df)
+                # The following two changes are needed to make the dataframe workable with R
+                strcols = df.select_dtypes(exclude=['number']).columns
+                df.loc[:, strcols] = df.loc[:, strcols].applymap(lambda x: x.replace("'", ""))
+                numcols = df.select_dtypes(include=['number']).columns
+                df.loc[:, numcols] = df.loc[:, numcols].astype('object')
             if self.is_csv(resource_url):
                 df = pd.read_csv(content) # not tested yet
         except Exception as e:
+            traceback.print_exc()
             print('Exception caught: ', e)
 
-        #df = df.apply(pd.to_numeric, errors='ignore')
-        print('*** Numeric df: ', df.dtypes)
+        print('*** Workable df with R: ', df, ' types: ', df.dtypes)
 
         # convert to R dataframe
         # Assuming that the last column is the output values
@@ -47,6 +52,7 @@ class MLDatacardGenerator(DatacardGenerator):
         # print('** pandas2ri methods: ', dir(pandas2ri))
         # Latest pyr2 docs recommend to use pandas2ri.py2ri functionality, but we are not able to use latest version of pyr2 due to dependence on python 2 forced by CKAN. The following works for pyr2=2.4.0, not tested on other versions.
         inputD = pandas2ri.pandas2ri(df)
+        print('** Input dataframe: ', inputD)
         # inputR = pandas2ri.pandas2ri(df.iloc[:, :-1])
         # outputR = pandas2ri.pandas2ri(df.iloc[:, -1:])
 

@@ -108,8 +108,16 @@ def _fetch_grouped_datacard(pkg_dict):
     # print('-- grouped datacard: ', grouped)
     return grouped
 
-# packages is a list of package dicts in unicode
-def _build_grouped_dataframe(packages):
+def _read_package(package_id):
+    data_dict = {
+        'id': package_id
+    }
+    pkg_dict = tk.get_action('package_show')(None, data_dict)
+    return pkg_dict
+
+# packages is a list of package dicts in unicode when ids=False
+# else it is a list of package ids in unicode
+def _build_grouped_dataframe(packages, ids=False):
     # Schema for dataframe for each group: ( package, metric1, metric2, ...)
     groupedDF = {}
     # fetch grouped datacard from each pkg dict
@@ -117,14 +125,15 @@ def _build_grouped_dataframe(packages):
     groups = []
     metrics = {}
 
-    try:
+    if(not ids):
+      try:
         for pkg in ast.literal_eval(packages):
             pkgname = pkg['name']
             # print('-- Getting package: ', pkgname)
             metrics[pkgname] = _fetch_grouped_datacard(pkg)
             pkglist.append(pkgname)
             groups.extend(metrics[pkgname].keys())
-    except ValueError:
+      except ValueError:
         # print('Trying out with a single package: ', packages)
         # this is likely a single package requested in dataset page
         try:
@@ -137,7 +146,20 @@ def _build_grouped_dataframe(packages):
         except Exception as e:
             print(e)
             return (None, None)# can't help with this exception
-
+    else:
+      # when package ids are passed
+      try:
+        for pkg_id in ast.literal_eval(packages):
+            pkg_dict = _read_package(pkg_id)
+            pkgname = pkg_dict['name']
+            # print('-- Getting package: ', pkgname)
+            metrics[pkgname] = _fetch_grouped_datacard(pkg_dict)
+            pkglist.append(pkgname)
+            groups.extend(metrics[pkgname].keys())
+      except ValueError as e:
+          print(e)
+          return (None, None)
+        
     # merge the data from packages to create a dataframe
     groups = set(groups)
     # Ignore test groups
@@ -182,14 +204,15 @@ def build_datacard_plot(packages):
     return None
 
 def build_datacard_spreadsheet(packages):
-    (groupedDF, groups) = _build_grouped_dataframe(packages)
+    print('Received package ids: ', packages)
+    (groupedDF, groups) = _build_grouped_dataframe(packages, ids=True)
     # build a plot with slider to select a group
     if groupedDF and groups:
         return generate_datacard_spreadsheet(groupedDF, groups)
     return None
 
-def render(obj):
-    tk.render(obj)
+#def render(obj):
+#    tk.render(obj)
 
 class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
     plugins.implements(plugins.IConfigurer)
@@ -355,8 +378,8 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
 
         # Insert keys from extras starting with datacard_ again
         for (k, v) in extras_list:
-            print('-- Adding: ', k)
-            pkg_dict[k] = v
+            pkg_dict[k] = float(v)
+            print('-- Adding: ', k, ' -> ', float(v))
          
         # return self._make_datacards_numeric(pkg_dict)
         return pkg_dict

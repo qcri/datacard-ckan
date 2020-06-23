@@ -45,14 +45,44 @@ ckan.module('datacard_compare', function ($) {
 
     _onClick: function(event) {
 
-        // Send an ajax request to CKAN to render the popover.html snippet.
-        // We wrap this in an if statement because we only want to request
-        // the snippet from CKAN once, not every time the button is clicked.
-        if (!this._snippetReceived) {
+        // Grab selected datasets
+        var checkboxes = document.querySelectorAll(`input[name="check"]:checked`); // getElementsByClassName("dcstyle-check");
+        let values = []
+        for (let i = 0; i < checkboxes.length; i++) {
+          var grabbed = checkboxes[i].value.split("check-")[1];
+          console.log("Checked value: " + grabbed);
+          values.push(grabbed);
+        }
+        if (values.length < 2) {
+          alert("Please select at least two datasets to compare");
+          this.el.popover('destroy');
+          var compareEl = document.getElementById("compare");
+          // console.log("Compare element found: " + compareEl);
+          compareEl.innerHTML = "";
+          return;
+        } else {
+          let selected = []
+          //console.log("Original packages: " + this.options.packages[0]);
+          //for(let i = 0; i < Object.values(this.options).length; i++) {
+            //console.log("Looking for: " + Object.keys(this.options)[i]);
+            //if (values.includes(p[name])) {
+              //selected.push(p);
+            //}
+          //}
+          var param = {packages: values};
+          this.options.packages = JSON.stringify(values);
+          console.log("Passing packages: " + this.options.packages);
+        
+          // Send an ajax request to CKAN to render the popover.html snippet.
+          // We wrap this in an if statement because we only want to request
+          // the snippet from CKAN once, not every time the button is clicked.
+          if (!this._snippetReceived) {
             this.sandbox.client.getTemplate('datacard_compare.html',
-                                            this.options,
+                                            this.options, 
                                             this._onReceiveSnippet);
-            this._snippetReceived = true;
+            //HACK: Disabling this temporarily
+            //this._snippetReceived = true;
+          }
         }
 
         // Publish a 'dataset_popover_clicked' event for other interested
@@ -81,19 +111,11 @@ ckan.module('datacard_compare', function ($) {
 	// Replace the popover with a new one that has the rendered HTML from the
 	// snippet as its contents.
 	this.el.popover('destroy');
-        // var parent = this.el.parentElement;
-        // var children = parent.childNodes;
-        // for (let i = 0; i < children.length; i++) {
-        //  if(c[i] != this.el) {
-        //    c[i].innerHTML = content;
-        //    this.el.disable();
-        //  }
-        // }
 
         var compareEl = document.getElementById("compare");
-        console.log("Compare element found: " + compareEl);
+        // console.log("Compare element found: " + compareEl);
         compareEl.innerHTML = content;
-        this.el.disabled = true;
+        // this.el.disabled = true;
      
 	// this.el.popover({title: "Comparing search results", html: true,
 	//		 content: content, placement: 'right'});
