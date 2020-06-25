@@ -1,8 +1,7 @@
-{% ckan_extends %}
+{#% ckan_extends %#}
 
-{% block extras %}
 {% resource 'datacard/datacard_compare.css' %}
- <section class="datacard-info">
+<section class="datacard-info">
   <h3>{{ _('Datacard') }}</h3>
   {% set datacard = h.datacard_build_datacard_spreadsheet(pkg_dict) %}
   {% if datacard is none %}
@@ -16,5 +15,4 @@
     {% endfor %}
     </dl>
   {% endif %} 
- </section>
-{% endblock %}
+</section>
