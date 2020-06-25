@@ -72,7 +72,7 @@ Config settings
 
 1. Datacard metrics to be used as facets for searching. 
    The directory contains a file for each type of datasets. Supported types include [mltype]. 
-   Source contains an example file: <https://github.com/mayureshkunjir/datacard-ckan/blob/master/ckanext-datacard/ckanext/datacard/config/facets/mltype>
+   Source contains an example file: <https://github.com/qcri/datacard-ckan/blob/master/ckanext-datacard/ckanext/datacard/config/facets/mltype>
 
        ckan.datacard.facetsdict = <path to directory containing facets configuration> 
 
