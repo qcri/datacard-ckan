@@ -1,9 +1,12 @@
 import pandas as pd
+import numpy as np
 from . import DatacardGenerator
 
 from scipy.io import arff
 import rpy2.robjects as ro
+import rpy2.rlike.container as rlc
 from rpy2.robjects import pandas2ri
+from rpy2.robjects.packages import importr
 
 import requests
 import io, traceback
@@ -33,11 +36,9 @@ class MLDatacardGenerator(DatacardGenerator):
                 print('*** arff data: ', meta)
                 df = pd.DataFrame(data)
                 # print('*** Loaded df: ', df)
-                # The following two changes are needed to make the dataframe workable with R
+                # The following change is needed to make the dataframe workable with R
                 strcols = df.select_dtypes(exclude=['number']).columns
                 df.loc[:, strcols] = df.loc[:, strcols].applymap(lambda x: x.replace("'", ""))
-                numcols = df.select_dtypes(include=['number']).columns
-                df.loc[:, numcols] = df.loc[:, numcols].astype('object')
             if self.is_csv(resource_url):
                 df = pd.read_csv(content) # not tested yet
         except Exception as e:
@@ -49,29 +50,47 @@ class MLDatacardGenerator(DatacardGenerator):
         # convert to R dataframe
         # Assuming that the last column is the output values
         pandas2ri.activate()
-        # print('** pandas2ri methods: ', dir(pandas2ri))
+        # print('** pandas2ri methods: ', dir(rlc))
+        r_cols = []
+        for col in df:
+            vec = None
+            if(np.issubdtype(df[col].dtype, np.number)):
+                vec = ro.FloatVector(df[col].values)
+            else:
+                vec = ro.FactorVector(ro.vectors.StrVector(df[col].values))
+            r_cols.append((df[col].name, vec))
+        print('*** R columns: ', r_cols)
+
+        od = rlc.OrdDict(r_cols)
+
+        # convert the OrdDict to an r dataframe and assign rownames
+        od_df = ro.DataFrame(od)
+        # print(od_df)
+
         # Latest pyr2 docs recommend to use pandas2ri.py2ri functionality, but we are not able to use latest version of pyr2 due to dependence on python 2 forced by CKAN. The following works for pyr2=2.4.0, not tested on other versions.
-        inputD = pandas2ri.pandas2ri(df)
-        print('** Input dataframe: ', inputD)
+        # inputD = pandas2ri.conversion.py2ri(df)
+        # print('** Input dataframe: ', inputD, ' ro methods: ', dir(ro))
         # inputR = pandas2ri.pandas2ri(df.iloc[:, :-1])
         # outputR = pandas2ri.pandas2ri(df.iloc[:, -1:])
 
         # Call R functions on dataframe
         ro.r('require(ECoL)')
-        ro.globalenv['dat'] = inputD
-        ## Conversion from pandas sets column types to StrVector, we need them to be FactorVectors in the APIs we invoke.
-        ro.r('''dat[,1:ncol(dat)]=lapply(1:ncol(dat),function(x) {
-        tryCatch({
-        as.factor(dat[[x]])
-        },warning = function(w) {
-        dat[[x]]}
-        )} )''')
+        ro.globalenv['dat'] = od_df
+        # print('** Summary as data: ', ro.r('print(summary(dat))'))
+        ## Conversion from pandas makes column types StrVector, we need them to be FactorVectors in the APIs we invoke.
+        #ro.r('''dat[,1:ncol(dat)]=lapply(1:ncol(dat),function(x) {
+        #tryCatch({
+        #as.factor(dat[[x]])
+        #},warning = function(w) {
+        #dat[[x]]}
+        #)} )''')
         # ro.globalenv['xvar'] = inputR
         # ro.globalenv['yvar'] = outputR
         # result = ro.r('complexity(xvar, yvar)')
+
         ## For the lack of knowledge of input data, we are making an assumption that the last column of dataset is the dependent attribute.
         result = ro.r('complexity(dat[-ncol(dat)], dat[ncol(dat)])')
-        print('*** Complexity output: ', pandas2ri.ri2pandas(result), ' type: ', dir(result))
+        # print('*** Complexity output: ', pandas2ri.ri2pandas(result), ' type: ', dir(result))
         for name in result.names:
             print('** Datacard metric: ', name, ' -> ', result.rx2(name)[0])
             group, metric = name.split('.', 1)

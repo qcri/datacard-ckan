@@ -7,7 +7,11 @@ import pandas as pd
 import numpy as np
 import collections
 
-from ckan.common import config
+# Need to import these because of code copied from helpers.py
+from six import string_types
+from urllib import urlencode
+
+from ckan.common import config, request
 from generators.mlgenerator import MLDatacardGenerator
 from compare import generate_datacard_plot, generate_datacard_spreadsheet
 
@@ -204,15 +208,216 @@ def build_datacard_plot(packages):
     return None
 
 def build_datacard_spreadsheet(packages):
-    print('Received package ids: ', packages)
-    (groupedDF, groups) = _build_grouped_dataframe(packages, ids=True)
+    ids = True # by default package ids are passed
+    if isinstance(packages, dict):
+        ids = False # package dictionary passed
+    (groupedDF, groups) = _build_grouped_dataframe(packages, ids)
     # build a plot with slider to select a group
     if groupedDF and groups:
         return generate_datacard_spreadsheet(groupedDF, groups)
     return None
 
-#def render(obj):
-#    tk.render(obj)
+# Built as a wrapper over tk.h.get_facet_items_dict
+# Bins numeric facets to only four non-overlapping range intervals
+def get_facet_items_binned(facet, limit=None, exclude_active=False):
+
+    from itertools import islice
+    
+    def histedges_equalN(x, nbin):
+        npt = len(x)
+        return np.interp(np.linspace(0, npt, nbin + 1),
+                         np.arange(npt),
+                         np.sort(x))
+
+    def window(seq, n=2):
+        "Returns a sliding window (of width n) over data from the iterable"
+        "   s -> (s0,s1,...s[n-1]), (s1,s2,...,sn), ...                   "
+        it = iter(seq)
+        result = tuple(islice(it, n))
+        if len(result) == n:
+            yield result    
+        for elem in it:
+            result = result[1:] + (elem,)
+            yield result
+
+    # items = tk.h.get_facet_items_dict(facet, limit, exclude_active)
+    if not hasattr(tk.c, u'search_facets') or not tk.c.search_facets.get(
+                                               facet, {}).get(u'items'):
+        return []
+
+    # Set filters active even when they do not match the exact condition
+    items = []
+    requests = request.params.items()
+    active_facets = []
+    # print('-- requested: ', requests)
+    for r in requests:
+        if(r[0] == 'q'): # case of q=...
+            queries = r[1].split(' AND ') # Assuming queries are separated by AND
+            active_facets = [ q.split(':')[0] for q in queries ]
+    # print('-- active facets: ', active_facets)
+    
+    for facet_item in tk.c.search_facets.get(facet)['items']:
+        if not len(facet_item['name'].strip()):
+            continue
+        if not exclude_active and facet in active_facets:
+            # print('Active = ', facet_item)
+            items.append(dict(active=True, **facet_item))
+        else:
+            # print('Not active = ', facet_item)
+            items.append(dict(active=False, **facet_item))
+    # Sort descendingly by count and ascendingly by case-sensitive display name
+    items.sort(key=lambda it: (-it['count'], it['display_name'].lower()))
+    if hasattr(tk.c, 'search_facets_limits'):
+        if tk.c.search_facets_limits and limit is None:
+            limit = tk.c.search_facets_limits.get(facet)
+    # zero treated as infinite for hysterical raisins
+    if limit is not None and limit > 0:
+        items = items[:limit]
+    
+    # print('-- Facet name passed: ', facet, ' found items: ', len(items), ' with type: ', type(items))
+    chosenItems = []
+    toBeProcessedItems = []
+    numBins = 3
+    numCategoricalBins = 0
+    values = []
+    counts = []
+    if(len(items) > numBins):
+        for item in items:
+            # print('-- Looking at ', item)
+            value = item['name']
+            try:
+                value = float(item['name'])
+                if(np.isnan(value)):
+                    #print('NaN encountered')
+                    chosenItems.append(item)
+                    numCategoricalBins += 1
+                else:
+                    values.append(value) # candidate for histogram
+                    counts.append(item['count'])
+                    toBeProcessedItems.append(item)
+            except ValueError as e:
+                print(e)
+                chosenItems.append(item)
+                numCategoricalBins += 1
+
+        numBinsLeft = numBins - numCategoricalBins
+        if(numBinsLeft > 0):
+            hist, ranges = np.histogram(values, histedges_equalN(values, numBinsLeft))
+            # print('-- Obtained histogram: ', hist, ' with: ', ranges, ' and intervals: ', np.digitize(values, ranges))
+            for (start, end) in window(ranges):
+                display_name = '{:.2f}'.format(start) + ':' + '{:.2f}'.format(end)
+                chosenItems.append({'count': 0, 'active': False, 'display_name':tk._(display_name) , 'name': tk._(display_name), 'start': start, 'end': end, 'right_closed': True}) #TODO: Change right_closed to False
+
+            i = 0
+            for histindex in np.digitize(values, ranges):
+                if(histindex == len(hist) + 1): # because intervals are open ended on right
+                    histindex = histindex - 1
+                    chosenItems[numCategoricalBins + histindex - 1]['right_closed'] = True
+                chosenItems[numCategoricalBins + histindex - 1]['count'] += counts[i]
+                #print('Adding ', counts[i], ' to bin: ', numCategoricalBins+histindex-1)
+                i += 1
+        print('Chosen items: ', chosenItems)
+        return chosenItems
+    return items
+
+# HACK: Copied private method from tk.h
+def _url_with_params(url, params):
+    if not params:
+        return url
+    params = [(k, v.encode('utf-8') if isinstance(v, string_types) else str(v))
+              for k, v in params]
+    return url + u'?' + urlencode(params)
+
+# HACK: Copied private methodd from tk.h
+def _create_url_with_params(params=None, controller=None, action=None,
+                            extras=None):
+    ''' internal function for building urls with parameters. '''
+
+    if not controller:
+        controller = tk.c.controller
+    if not action:
+        action = tk.c.action
+    if not extras:
+        extras = {}
+
+    url = tk.h.url_for(controller=controller, action=action, **extras)
+    return _url_with_params(url, params)
+
+# Built over tk.h.add_url_param
+# Add 'new_params' to query string
+def datacard_add_url_param(alternative_url=None, controller=None, action=None,
+                  extras=None, new_params=None):
+    params_nopage = [(k, v) for k, v in request.params.items() if k != 'page']
+    params = list(params_nopage)
+    # print('--Existing params: ', params)
+    # print('--New params: ', new_params)
+    if new_params:
+        if len(params) == 0:
+            params.append(('q', new_params))
+        else:
+            newQuery = None
+            for p in params:
+                if(p[0] == 'q'):
+                    newQuery = p[1] + ' AND ' + new_params
+            if(newQuery):
+                params = [('q', newQuery) if p[0]=='q' else p for p in params]
+
+    if alternative_url:
+        return _url_with_params(alternative_url, params)
+
+    return _create_url_with_params(params=params, controller=controller,
+                                   action=action, extras=extras)
+
+# Built over tk.h.remove_url_param
+# If 'new_params' is in query string, remove it, else update it with new value
+def datacard_update_url_param(key, value=None, replace=None, controller=None,
+                              action=None, extras=None, alternative_url=None, new_params=None):
+    if isinstance(key, string_types):
+        keys = [key]
+    else:
+        keys = key
+
+    params_nopage = [(k, v) for k, v in request.params.items() if k != 'page']
+    params = list(params_nopage)
+    active_queries = []
+    for p in params:
+        if(p[0] == 'q'):
+            active_queries = [tuple(query.split(':')) for query in p[1].split(' AND ')]
+
+    if value:
+        active_queries.remove((keys[0], value))
+    else:
+        for key in keys:
+            [active_queries.remove((k, v)) for (k, v) in active_queries if k == key]
+        print('--Active queries after removal: ', active_queries)
+    if replace is not None:
+        active_queries.append((keys[0], replace))
+
+    if len(active_queries) > 0:
+        unjoined = [k + ':' + v for (k, v) in active_queries]
+        joined = ' AND '.join(unjoined)
+        print('--Queries after removal: ', joined)
+        params = [('q', joined) if p[0]=='q' else p for p in params]
+    else: #All queries eliminated
+        [params.remove((k, v)) for (k, v) in params if k == 'q']
+
+    if new_params:
+        if len(params) == 0:
+            params.append(('q', new_params))
+        else:
+            newQuery = None
+            for p in params:
+                if(p[0] == 'q'):
+                    newQuery = p[1] + ' AND ' + new_params
+            if(newQuery):
+                params = [('q', newQuery) if p[0]=='q' else p for p in params]
+
+    if alternative_url:
+        return _url_with_params(alternative_url, params)
+
+    return _create_url_with_params(params=params, controller=controller,
+                                   action=action, extras=extras)
+
 
 class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
     plugins.implements(plugins.IConfigurer)
@@ -425,5 +630,9 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
     def get_helpers(self):
         return {'datacard_fetch_grouped_datacard': _fetch_grouped_datacard,
                 'datacard_build_datacard_plot': build_datacard_plot,
-                'datacard_build_datacard_spreadsheet': build_datacard_spreadsheet}
+                'datacard_build_datacard_spreadsheet': build_datacard_spreadsheet,
+                'datacard_get_facet_items_dict': get_facet_items_binned,
+                'datacard_add_url_param': datacard_add_url_param,
+                'datacard_update_url_param': datacard_update_url_param
+        }
 
