@@ -240,7 +240,6 @@ def get_facet_items_binned(facet, limit=None, exclude_active=False):
             result = result[1:] + (elem,)
             yield result
 
-    # items = tk.h.get_facet_items_dict(facet, limit, exclude_active)
     if not hasattr(tk.c, u'search_facets') or not tk.c.search_facets.get(
                                                facet, {}).get(u'items'):
         return []
@@ -255,7 +254,7 @@ def get_facet_items_binned(facet, limit=None, exclude_active=False):
             queries = r[1].split(' AND ') # Assuming queries are separated by AND
             active_facets = [ q.split(':')[0] for q in queries ]
     # print('-- active facets: ', active_facets)
-    
+
     for facet_item in tk.c.search_facets.get(facet)['items']:
         if not len(facet_item['name'].strip()):
             continue
@@ -305,7 +304,7 @@ def get_facet_items_binned(facet, limit=None, exclude_active=False):
             hist, ranges = np.histogram(values, histedges_equalN(values, numBinsLeft))
             # print('-- Obtained histogram: ', hist, ' with: ', ranges, ' and intervals: ', np.digitize(values, ranges))
             for (start, end) in window(ranges):
-                display_name = '{:.2f}'.format(start) + ':' + '{:.2f}'.format(end)
+                display_name = '[ {:.2f}'.format(start) + ' -- ' + '{:.2f} ]'.format(end)
                 chosenItems.append({'count': 0, 'active': False, 'display_name':tk._(display_name) , 'name': tk._(display_name), 'start': start, 'end': end, 'right_closed': True}) #TODO: Change right_closed to False
 
             i = 0
@@ -316,7 +315,7 @@ def get_facet_items_binned(facet, limit=None, exclude_active=False):
                 chosenItems[numCategoricalBins + histindex - 1]['count'] += counts[i]
                 #print('Adding ', counts[i], ' to bin: ', numCategoricalBins+histindex-1)
                 i += 1
-        print('Chosen items: ', chosenItems)
+        # print('Chosen items: ', chosenItems)
         return chosenItems
     return items
 
@@ -594,6 +593,7 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
 
     # IFacets
     cachedFacets = {}
+    facetDescriptions = {}
 
     def dataset_facets(self, facets_dict, package_type):
         print('Requested facets for: ', package_type, ' facets: ', facets_dict)
@@ -615,11 +615,12 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
             # print('looking for: ', facets_file)
             if os.path.exists(facets_file):
                 # print('Reading from: ', facets_file)
-                data = pd.read_csv(facets_file, sep='\t', index_col='Metric', usecols=('Metric', 'DisplayValue'))
+                data = pd.read_csv(facets_file, sep='\t', index_col='Metric', usecols=('Metric', 'DisplayValue', 'Description'), encoding='utf-8')
                 print('Obtained new facets: ')
                 for row in data.itertuples():
-                    print(row)
+                    # print(row)
                     self.cachedFacets[package_type][tk._(row[0])] = tk._(row[1])
+                    self.facetDescriptions[tk._(row[0])] = tk._(row[2])
         # DUMMY implementation below
         self.cachedFacets[package_type][tk._('datacard_group1_metric')] = tk._('Resource Counts')
         facets_dict.update(self.cachedFacets[package_type])
@@ -632,6 +633,7 @@ class DatacardPlugin(plugins.SingletonPlugin, tk.DefaultDatasetForm):
                 'datacard_build_datacard_plot': build_datacard_plot,
                 'datacard_build_datacard_spreadsheet': build_datacard_spreadsheet,
                 'datacard_get_facet_items_dict': get_facet_items_binned,
+                'datacard_get_facet_descriptions': (lambda: self.facetDescriptions),
                 'datacard_add_url_param': datacard_add_url_param,
                 'datacard_update_url_param': datacard_update_url_param
         }

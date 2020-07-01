@@ -4,6 +4,7 @@
 {% if fields_grouped is not defined %}{% set fields_grouped = c.fields_grouped %}{% endif %}
 {% if search_facets is not defined %}{% set search_facets = c.search_facets %}{% endif %}
 {% if facet_titles is not defined %}{% set facet_titles = c.facet_titles %}{% endif %}
+{% if facet_descriptions is not defined %}{% set facet_descriptions = h.datacard_get_facet_descriptions() %}{% endif %}
 {% if translated_fields is not defined %}{% set translated_fields = c.translated_fields %}{% endif %}
 {% if remove_field is not defined %}{% set remove_field = c.remove_field %}{% endif %}
 {% if sort_by_selected is not defined %}{% set sort_by_selected = c.sort_by_selected %}{% endif %}
@@ -36,5 +37,16 @@
 
 {% block package_search_results_list %}
     {{ h.snippet('package/snippets/datacard_package_list.html', packages=page.items) }}
+{% endblock %}
+
+{% block secondary_content %}
+<div class="filters">
+  <div>
+    {% for facet in c.facet_titles %}
+      {{ h.snippet('snippets/facet_list.html', title=c.facet_titles[facet], description=facet_descriptions.get(facet, ''), name=facet) }}
+    {% endfor %}
+  </div>
+  <a class="close no-text hide-filters"><i class="fa fa-times-circle"></i><span class="text">close</span></a>
+</div>
 {% endblock %}
 

@@ -7,6 +7,9 @@ name
 title
   The title of the facet, eg. "Tags", or "Tag Cloud"
 
+description
+  [Optional] Description of the facet, useful for datacard metrics
+
 label_function
   Renders the human-readable label for each facet value.
   If defined, this should be a callable that accepts a `facet_item`.
@@ -39,6 +42,7 @@ within_tertiary
 #}
 {% block facet_list %}
   {% set hide_empty = hide_empty or false %}
+  {% set description = description or '' %}
   {% with items = items or h.get_facet_items_dict(name) %}
     {% if items or not hide_empty %}
       {% if within_tertiary %}
@@ -53,6 +57,11 @@ within_tertiary
               <i class="fa fa-filter"></i>
               {% set title = title or h.get_facet_title(name) %}
               {{ title }}
+              {% if description %}
+                <button title="{{ description}}">
+                <i class="fa fa-info-circle"></i>
+                </button>
+              {% endif %}
             </h2>
           {% endblock %}
           {% block facet_list_items %}
