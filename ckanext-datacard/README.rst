@@ -90,6 +90,8 @@ do::
     pip install -r dev-requirements.txt
     python setup.py develop
 
+Afrer successful installation, add ``datacard`` to the ``ckan.plugins`` settings as mentioned in the Step 3. of Installation and restart CKAN.
+
 -----
 Tests
 -----
