@@ -86,9 +86,9 @@ do::
 
     git clone https://github.com/mayureshkunjir/ckanext-datacard.git
     cd ckanext-datacard
-    python setup.py develop
+    pip install -r requirements.txt
     pip install -r dev-requirements.txt
-
+    python setup.py develop
 
 -----
 Tests
