@@ -90,8 +90,9 @@ do::
 
     git clone https://github.com/qcri/ckanext-datacard_backend.git
     cd ckanext-datacard_backend
-    python setup.py develop
     pip install -r dev-requirements.txt
+    pip install requirements.txt
+    python setup.py develop
 
 
 -----
