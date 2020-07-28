@@ -127,8 +127,8 @@ class CKAN():
         data_dict = {
             'id': name
         }
-        print('deleting package: ', name, ' with: ', data_dict)
-        result = self._postrequest(url, data_dict,self._buildheaders())
+        print('deleting package: ', url, ' with: ', data_dict)
+        result = self._postrequest(url, data_dict, self._buildheaders('X-CKAN-API-Key'))
         # Package ID of the newly created resource
         if result is not None:
            print('Deleted package: ', result)
@@ -195,4 +195,33 @@ class CKAN():
         if result is not None:
             print('Uploaded file: ', result)
             return result['id']
-        
+
+    def compute_datacard(self, package_id):
+        url = self.site + '/api/action/compute_datacard'
+        print('creating datacards for dataset identified by: ', package_id)
+        data_dict = {
+            "id":package_id,
+        }
+        result = self._postrequest(url, data_dict, self._buildheaders())
+        return result
+
+    def get_datacard(self, package_id):
+        url = self.site + '/api/action/get_datacard'
+        print('fetching datacards for dataset identified by: ', package_id)
+        data_dict = {
+            "id":package_id,
+        }
+        result = self._postrequest(url, data_dict, self._buildheaders())
+        return result
+
+    '''
+    Key should be of format <group>_<metric>
+    '''
+    def search_datacard(self, key, value):
+        url = self.site + '/api/action/search_datacard'
+        print(f'searching datasets for query: {key}={value}')
+        data_dict = {
+            "key": key, "value": value
+        }
+        result = self._postrequest(url, data_dict, self._buildheaders())
+        return result
