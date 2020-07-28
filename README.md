@@ -24,9 +24,9 @@
 - Additionally, our extension provides the following APIs:
     1. compute_datacard(id): 'id' corresponds to the package id of the CKAN dataset
     2. get_datacard(id): 'id' corresponds to the package id of the CKAN dataset
-    3. search_datacard(key, value): supports search query of the type 'key'='value'. The key should be of format <group><metric> 
-- Examples of using Python interface can be found in the file [ckanapi.py](https://github.com/qcri/datacard-ckan/blob/backend/api/ckanapi.py)
-- An example of using HTTP request to make API request is given below:
+    3. search_datacard(key, value): supports search query of the type 'key'='value'. The key should be of format 'group'\_'metric'. (Please find an example below.) 
+- APIs can be accessed using HTTP requests as given below:
     ```
     http://127.0.0.1:5050/api/3/action/search_datacard?key=overlapping_F2.mean&value=1.0
     ```
+- Examples of using Python interface can be found in the file [ckanapi.py](https://github.com/qcri/datacard-ckan/blob/backend/api/ckanapi.py)
